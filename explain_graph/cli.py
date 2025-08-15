@@ -1,8 +1,10 @@
+# explain_graph/cli.py
 import typer
 from pathlib import Path
 from .ocr import ocr_extract
 from .analyze import analyze_chart
 from .export import write_md, write_json
+from .detect import detect_chart_type
 
 app = typer.Typer(help="Explain My Graph CLI")
 
@@ -12,18 +14,25 @@ def main(
     out: str = typer.Option("out", help="Output directory"),
 ):
     """
-    v0.1:
-    - OCR the chart to extract text
-    - Run LLM (or fallback) to produce Summary/Observations/Improvements
-    - Export to report.md + report.json
+    v0.2:
+    - OCR the chart (texts)
+    - Heuristically detect chart type & simple features
+    - Run LLM (or fallback) to produce Summary/Observations/Improvements (+type_feedback)
+    - Export report.md + report.json
     """
     out_p = Path(out); out_p.mkdir(parents=True, exist_ok=True)
 
     typer.echo("🖼️ Reading & OCR…")
     ocr = ocr_extract(image)
 
+    typer.echo("🔎 Detecting chart type…")
+    guess = detect_chart_type(image)
+    typer.echo(f"   → type={guess.chart_type} | features={guess.features}")
+
     typer.echo("🧠 Analyzing…")
-    report = analyze_chart(image_path=image, ocr=ocr)
+    report = analyze_chart(image_path=image, ocr=ocr, chart_type=guess.chart_type, features=guess.features)
+    report["detected_type"] = guess.chart_type
+    report["detected_features"] = guess.features
 
     typer.echo("📝 Exporting…")
     write_json(out_p / "report.json", report)
